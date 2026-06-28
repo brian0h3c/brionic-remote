@@ -25,4 +25,6 @@ export const api = {
   updateConnection: (id: string, c: ConnectionInput) =>
     req<Connection>('PUT', `/api/connections/${id}`, c),
   deleteConnection: (id: string) => req<{ ok: boolean }>('DELETE', `/api/connections/${id}`),
+  forgetHostKey: (id: string) =>
+    req<{ ok: boolean }>('POST', `/api/connections/${id}/forget-hostkey`),
 }

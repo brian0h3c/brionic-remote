@@ -38,6 +38,10 @@ type Connection struct {
 	PrivateKey string `json:"private_key,omitempty"`
 	Passphrase string `json:"passphrase,omitempty"`
 
+	// HostKey is the base64-encoded SSH host public key pinned on first connect
+	// (trust-on-first-use). Empty until the first successful connection.
+	HostKey string `json:"host_key,omitempty"`
+
 	Notes     string    `json:"notes,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`

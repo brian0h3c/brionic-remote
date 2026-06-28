@@ -290,6 +290,28 @@ label {
   padding: 8px;
 }
 
+.hostkey {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+.hostkey code {
+  color: var(--text);
+  background: var(--panel-2);
+  padding: 1px 6px;
+  border-radius: 5px;
+}
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--brand);
+  padding: 0 4px;
+  font-size: 12px;
+}
+.link-btn:hover {
+  text-decoration: underline;
+}
+
 /* --- form --- */
 
 .conn-form {

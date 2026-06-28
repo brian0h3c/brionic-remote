@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -62,23 +63,22 @@ func (s *Server) handleSSH(w http.ResponseWriter, r *http.Request) {
 	}
 	defer ws.Close()
 
-	if err := bridgeSSH(ws, conn); err != nil {
+	if err := bridgeSSH(ws, s.vault, conn); err != nil {
 		out := &wsWriter{ws: ws}
 		_, _ = out.Write([]byte("\r\n\x1b[31m[brionic-remote] " + err.Error() + "\x1b[0m\r\n"))
 	}
 }
 
-func bridgeSSH(ws *websocket.Conn, conn vault.Connection) error {
+func bridgeSSH(ws *websocket.Conn, v *vault.Vault, conn vault.Connection) error {
 	auths, err := sshAuthMethods(conn)
 	if err != nil {
 		return err
 	}
 
 	cfg := &ssh.ClientConfig{
-		User: conn.Username,
-		Auth: auths,
-		// TODO: implement trust-on-first-use host key pinning per connection.
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		User:            conn.Username,
+		Auth:            auths,
+		HostKeyCallback: pinnedHostKey(v, conn),
 		Timeout:         15 * time.Second,
 	}
 
@@ -150,6 +150,22 @@ func bridgeSSH(ws *websocket.Conn, conn vault.Connection) error {
 
 	<-done
 	return nil
+}
+
+// pinnedHostKey verifies the server key against the value stored on the
+// connection. On the first connection it trusts and pins the key (TOFU); after
+// that, a changed key aborts the connection as a possible MITM.
+func pinnedHostKey(v *vault.Vault, conn vault.Connection) ssh.HostKeyCallback {
+	return func(_ string, _ net.Addr, key ssh.PublicKey) error {
+		marshaled := base64.StdEncoding.EncodeToString(key.Marshal())
+		if conn.HostKey == "" {
+			return v.SetHostKey(conn.ID, marshaled)
+		}
+		if conn.HostKey != marshaled {
+			return fmt.Errorf("host key mismatch (possible MITM). New fingerprint %s. Forget the saved key to trust this server", ssh.FingerprintSHA256(key))
+		}
+		return nil
+	}
 }
 
 func sshAuthMethods(conn vault.Connection) ([]ssh.AuthMethod, error) {

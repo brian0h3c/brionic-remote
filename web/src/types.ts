@@ -13,6 +13,7 @@ export interface Connection {
   notes?: string
   has_password?: boolean
   has_private_key?: boolean
+  host_key_fingerprint?: string
   created_at?: string
   updated_at?: string
 }

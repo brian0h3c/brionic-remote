@@ -193,10 +193,22 @@ function openConnection(c: Connection) {
         <button id="edit" class="btn-ghost">Edit</button>
       </div>
     </div>
+    ${
+      c.host_key_fingerprint
+        ? `<div class="hostkey">Pinned host key <code>${esc(c.host_key_fingerprint)}</code> <button id="forget" class="link-btn">forget</button></div>`
+        : ''
+    }
     <div id="term" class="terminal"></div>`)
 
   ;($('#edit') as HTMLButtonElement).onclick = () => renderForm(c)
   ;($('#reconnect') as HTMLButtonElement).onclick = () => openConnection(c)
+  const forget = document.querySelector<HTMLButtonElement>('#forget')
+  if (forget) {
+    forget.onclick = async () => {
+      await api.forgetHostKey(c.id)
+      await loadApp()
+    }
+  }
 
   disposeTerminal()
   activeTerminal = openTerminal($('#term'), c.id, () => {

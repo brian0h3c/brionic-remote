@@ -252,6 +252,23 @@ func (v *Vault) DeleteConnection(id string) error {
 	return v.saveLocked()
 }
 
+// SetHostKey pins (or clears) the trusted SSH host key for a connection and
+// persists the vault. An empty value forgets the pinned key.
+func (v *Vault) SetHostKey(id, hostKey string) error {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if v.dek == nil {
+		return ErrLocked
+	}
+	for i := range v.data.Connections {
+		if v.data.Connections[i].ID == id {
+			v.data.Connections[i].HostKey = hostKey
+			return v.saveLocked()
+		}
+	}
+	return errors.New("connection not found")
+}
+
 // saveLocked re-encrypts the payload with the DEK and atomically writes the file.
 // The caller must hold v.mu (write lock).
 func (v *Vault) saveLocked() error {

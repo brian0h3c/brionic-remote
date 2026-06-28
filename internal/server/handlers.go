@@ -2,6 +2,7 @@ package server
 
 import (
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -12,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/brian0h3c/brionic-remote/internal/vault"
+	"golang.org/x/crypto/ssh"
 )
 
 const sessionCookie = "brionic_session"
@@ -31,6 +33,7 @@ func (s *Server) routes() {
 	mux.Handle("GET /api/connections/{id}", s.auth(s.handleGetConnection))
 	mux.Handle("PUT /api/connections/{id}", s.auth(s.handleUpdateConnection))
 	mux.Handle("DELETE /api/connections/{id}", s.auth(s.handleDeleteConnection))
+	mux.Handle("POST /api/connections/{id}/forget-hostkey", s.auth(s.handleForgetHostKey))
 
 	// Live SSH session bridge.
 	mux.Handle("GET /api/ws/ssh/{id}", s.auth(s.handleSSH))
@@ -210,6 +213,7 @@ func (s *Server) handleUpdateConnection(w http.ResponseWriter, r *http.Request) 
 	if in.Passphrase == "" {
 		in.Passphrase = existing.Passphrase
 	}
+	in.HostKey = existing.HostKey
 	in.CreatedAt = existing.CreatedAt
 	updated, err := s.vault.UpdateConnection(in)
 	if err != nil {
@@ -227,25 +231,51 @@ func (s *Server) handleDeleteConnection(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
+func (s *Server) handleForgetHostKey(w http.ResponseWriter, r *http.Request) {
+	if err := s.vault.SetHostKey(r.PathValue("id"), ""); err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
 // --- redaction -------------------------------------------------------------
 
 // connectionView is the API representation of a Connection with secrets stripped.
 type connectionView struct {
 	vault.Connection
-	HasPassword   bool `json:"has_password"`
-	HasPrivateKey bool `json:"has_private_key"`
+	HasPassword   bool   `json:"has_password"`
+	HasPrivateKey bool   `json:"has_private_key"`
+	HostKeyFP     string `json:"host_key_fingerprint,omitempty"`
 }
 
 func view(c vault.Connection) connectionView {
 	cv := connectionView{
 		HasPassword:   c.Password != "",
 		HasPrivateKey: c.PrivateKey != "",
+		HostKeyFP:     fingerprint(c.HostKey),
 	}
 	c.Password = ""
 	c.PrivateKey = ""
 	c.Passphrase = ""
+	c.HostKey = ""
 	cv.Connection = c
 	return cv
+}
+
+func fingerprint(hostKey string) string {
+	if hostKey == "" {
+		return ""
+	}
+	raw, err := base64.StdEncoding.DecodeString(hostKey)
+	if err != nil {
+		return ""
+	}
+	pk, err := ssh.ParsePublicKey(raw)
+	if err != nil {
+		return ""
+	}
+	return ssh.FingerprintSHA256(pk)
 }
 
 func normalize(c vault.Connection) vault.Connection {

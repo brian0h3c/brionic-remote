@@ -98,14 +98,15 @@ make cross      # builds dist/brionic-remote-<os>-<arch> for mac/linux/windows
 
 - Bind address defaults to **localhost only**. Don't expose it to a network
   without adding TLS and stronger auth.
-- **Host-key verification is not yet implemented** (connections currently accept
-  any host key). Trust-on-first-use pinning is a priority — see the roadmap.
+- **Host keys are pinned on first connect** (trust-on-first-use). If a server's
+  key later changes, the connection is refused as a possible MITM until you
+  explicitly forget the saved key.
 - The vault has **no password recovery**. Forgetting the master password means
   the data is unrecoverable by design.
 
 ## Roadmap
 
-- [ ] Trust-on-first-use SSH host-key pinning
+- [x] Trust-on-first-use SSH host-key pinning
 - [ ] Passkey (WebAuthn) and email unlock methods
 - [ ] In-browser RDP and VNC viewers
 - [ ] SSH key generation / import helpers, agent forwarding

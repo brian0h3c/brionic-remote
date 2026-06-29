@@ -126,6 +126,10 @@ To carry it on a USB stick / move between computers:
 3. The vault is read/written **next to the binary** by default, so it travels
    with you. Use `--vault /path/to/file.vault` to point elsewhere.
 
+> Tip: the **Export portable bundle** button in the app zips the current binary
+> together with your vault for the OS you're on. Add the other-OS binaries from
+> `make cross` if you switch platforms.
+
 > Tip: store each connection's password or private key **inside the connection**
 > for full portability. The local SSH agent and `~/.ssh` keys are convenient but
 > do **not** travel with the vault.

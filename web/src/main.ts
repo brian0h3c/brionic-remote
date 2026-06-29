@@ -106,12 +106,16 @@ function renderApp() {
         <div class="brand"><span class="brand-mark">◆</span> Brionic Remote</div>
         <button id="new-conn" class="btn-primary btn-block">+ New connection</button>
         <div id="conn-list" class="conn-list"></div>
+        <button id="export-btn" class="btn-ghost btn-block">Export portable bundle</button>
         <button id="lock-btn" class="btn-ghost btn-block">Lock vault</button>
       </aside>
       <main id="main" class="main"></main>
     </div>`
 
   ;($('#new-conn') as HTMLButtonElement).onclick = () => renderForm()
+  ;($('#export-btn') as HTMLButtonElement).onclick = () => {
+    window.location.href = '/api/export'
+  }
   ;($('#lock-btn') as HTMLButtonElement).onclick = async () => {
     await api.lock()
     location.reload()

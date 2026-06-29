@@ -1,15 +1,19 @@
 package server
 
 import (
+	"archive/zip"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"io"
 	"io/fs"
 	"mime"
 	"net/http"
+	"os"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/brian0h3c/brionic-remote/internal/vault"
@@ -34,6 +38,7 @@ func (s *Server) routes() {
 	mux.Handle("PUT /api/connections/{id}", s.auth(s.handleUpdateConnection))
 	mux.Handle("DELETE /api/connections/{id}", s.auth(s.handleDeleteConnection))
 	mux.Handle("POST /api/connections/{id}/forget-hostkey", s.auth(s.handleForgetHostKey))
+	mux.Handle("GET /api/export", s.auth(s.handleExport))
 
 	// Live SSH session bridge.
 	mux.Handle("GET /api/ws/ssh/{id}", s.auth(s.handleSSH))
@@ -237,6 +242,33 @@ func (s *Server) handleForgetHostKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// handleExport streams a zip of the running binary plus the vault, so the user
+// can drop a self-contained, portable copy onto a USB drive.
+func (s *Server) handleExport(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", `attachment; filename="brionic-remote-portable.zip"`)
+	zw := zip.NewWriter(w)
+	defer zw.Close()
+
+	if exe, err := os.Executable(); err == nil {
+		addFileToZip(zw, exe, filepath.Base(exe))
+	}
+	addFileToZip(zw, s.vault.Path(), "brionic-remote.vault")
+}
+
+func addFileToZip(zw *zip.Writer, srcPath, name string) {
+	f, err := os.Open(srcPath)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	dst, err := zw.Create(name)
+	if err != nil {
+		return
+	}
+	_, _ = io.Copy(dst, f)
 }
 
 // --- redaction -------------------------------------------------------------

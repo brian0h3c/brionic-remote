@@ -43,6 +43,9 @@ func (s *Server) routes() {
 	// Live SSH session bridge.
 	mux.Handle("GET /api/ws/ssh/{id}", s.auth(s.handleSSH))
 
+	// Live VNC relay (browser noVNC <-> server TCP).
+	mux.Handle("GET /api/ws/vnc/{id}", s.auth(s.handleVNC))
+
 	// Static frontend with SPA fallback.
 	mux.Handle("/", s.staticHandler())
 

@@ -290,6 +290,15 @@ label {
   padding: 8px;
 }
 
+.vnc {
+  flex: 1;
+  min-height: 360px;
+  background: #000;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
 .hostkey {
   font-size: 12px;
   color: var(--muted);

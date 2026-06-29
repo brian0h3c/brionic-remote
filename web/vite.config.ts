@@ -6,6 +6,7 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   build: {
     outDir: 'dist',
+    target: 'esnext',
     // Keep emptyOutDir off so the committed .gitkeep (which keeps the Go embed
     // directory present on fresh clones) survives builds. The Makefile cleans
     // stale hashed assets before each build.

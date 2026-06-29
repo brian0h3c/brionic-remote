@@ -1,13 +1,14 @@
 import './styles.css'
 import { api } from './api'
 import type { Connection, ConnectionInput, Protocol } from './types'
-import { openTerminal, type TerminalSession } from './terminal'
+import { openTerminal } from './terminal'
+import { openVnc } from './vnc'
 
 const app = document.getElementById('app') as HTMLElement
 
 let connections: Connection[] = []
 let activeId: string | null = null
-let activeTerminal: TerminalSession | null = null
+let activeTerminal: { dispose(): void } | null = null
 
 void init()
 
@@ -178,13 +179,27 @@ function openConnection(c: Connection) {
   activeId = c.id
   renderList()
 
+  if (c.protocol === 'vnc') {
+    setMain(`
+      <div class="session-head">
+        <div><h2>${esc(c.name)}</h2><p class="muted">VNC · ${esc(c.host)}:${esc(c.port)}</p></div>
+        <div class="session-actions"><button id="reconnect" class="btn-ghost">Reconnect</button><button id="edit" class="btn-ghost">Edit</button></div>
+      </div>
+      <div id="vnc" class="vnc"></div>`)
+    ;($('#edit') as HTMLButtonElement).onclick = () => renderForm(c)
+    ;($('#reconnect') as HTMLButtonElement).onclick = () => openConnection(c)
+    disposeTerminal()
+    activeTerminal = openVnc($('#vnc'), c.id, () => {})
+    return
+  }
+
   if (c.protocol !== 'ssh') {
     setMain(`
       <div class="session-head">
         <div><h2>${esc(c.name)}</h2><p class="muted">${esc(c.protocol.toUpperCase())} · ${esc(c.host)}:${esc(c.port)}</p></div>
         <div class="session-actions"><button id="edit" class="btn-ghost">Edit</button></div>
       </div>
-      <div class="notice">In-browser ${esc(c.protocol.toUpperCase())} sessions are on the roadmap. For now this profile is stored securely and ready for the upcoming viewer.</div>`)
+      <div class="notice">In-browser ${esc(c.protocol.toUpperCase())} requires a gateway and is on the roadmap. The profile is stored securely and ready for the upcoming viewer.</div>`)
     ;($('#edit') as HTMLButtonElement).onclick = () => renderForm(c)
     return
   }

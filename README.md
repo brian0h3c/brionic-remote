@@ -153,8 +153,9 @@ make cross      # builds dist/brionic-remote-<os>-<arch> for mac/linux/windows
 ## Roadmap
 
 - [x] Trust-on-first-use SSH host-key pinning
+- [x] In-browser VNC viewer (noVNC relay)
 - [ ] Passkey (WebAuthn) and email unlock methods
-- [ ] In-browser RDP and VNC viewers
+- [ ] In-browser RDP viewer (needs an RDP gateway, e.g. guacd)
 - [ ] SSH key generation / import helpers, agent forwarding
 - [ ] Folders/tags, search, import from other managers
 - [ ] Optional encrypted multi-device sync

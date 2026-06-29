@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"time"
@@ -14,6 +16,7 @@ import (
 	"github.com/brian0h3c/brionic-remote/internal/vault"
 	"github.com/gorilla/websocket"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 )
 
 var upgrader = websocket.Upgrader{
@@ -171,8 +174,8 @@ func pinnedHostKey(v *vault.Vault, conn vault.Connection) ssh.HostKeyCallback {
 func sshAuthMethods(conn vault.Connection) ([]ssh.AuthMethod, error) {
 	var methods []ssh.AuthMethod
 
-	switch conn.AuthMethod {
-	case vault.AuthKey:
+	// A pasted private key takes priority.
+	if conn.AuthMethod == vault.AuthKey && conn.PrivateKey != "" {
 		var signer ssh.Signer
 		var err error
 		if conn.Passphrase != "" {
@@ -184,23 +187,65 @@ func sshAuthMethods(conn vault.Connection) ([]ssh.AuthMethod, error) {
 			return nil, fmt.Errorf("parse private key: %w", err)
 		}
 		methods = append(methods, ssh.PublicKeys(signer))
-	default:
-		if conn.Password != "" {
-			methods = append(methods, ssh.Password(conn.Password))
-			methods = append(methods, ssh.KeyboardInteractive(
-				func(_, _ string, questions []string, _ []bool) ([]string, error) {
-					answers := make([]string, len(questions))
-					for i := range questions {
-						answers[i] = conn.Password
-					}
-					return answers, nil
-				},
-			))
-		}
 	}
 
+	// A stored password (also answers keyboard-interactive prompts).
+	if conn.Password != "" {
+		methods = append(methods, ssh.Password(conn.Password))
+		methods = append(methods, ssh.KeyboardInteractive(
+			func(_, _ string, questions []string, _ []bool) ([]string, error) {
+				answers := make([]string, len(questions))
+				for i := range questions {
+					answers[i] = conn.Password
+				}
+				return answers, nil
+			},
+		))
+	}
+
+	// Fall back to the local SSH agent and default keys in ~/.ssh — this covers
+	// the common case of logging in with your existing keys (run `ssh-add`).
+	if a := agentAuth(); a != nil {
+		methods = append(methods, a)
+	}
+	methods = append(methods, defaultKeyAuth()...)
+
 	if len(methods) == 0 {
-		return nil, errors.New("no authentication credentials configured for this connection")
+		return nil, errors.New("no credentials: add a password or key, run `ssh-add`, or keep a key in ~/.ssh")
 	}
 	return methods, nil
+}
+
+// agentAuth returns an auth method backed by the running SSH agent, if any.
+func agentAuth() ssh.AuthMethod {
+	sock := os.Getenv("SSH_AUTH_SOCK")
+	if sock == "" {
+		return nil
+	}
+	c, err := net.Dial("unix", sock)
+	if err != nil {
+		return nil
+	}
+	return ssh.PublicKeysCallback(agent.NewClient(c).Signers)
+}
+
+// defaultKeyAuth loads unencrypted default keys from ~/.ssh.
+func defaultKeyAuth() []ssh.AuthMethod {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil
+	}
+	var out []ssh.AuthMethod
+	for _, name := range []string{"id_ed25519", "id_ecdsa", "id_rsa"} {
+		b, err := os.ReadFile(filepath.Join(home, ".ssh", name))
+		if err != nil {
+			continue
+		}
+		signer, err := ssh.ParsePrivateKey(b)
+		if err != nil {
+			continue // skip passphrase-protected default keys
+		}
+		out = append(out, ssh.PublicKeys(signer))
+	}
+	return out
 }

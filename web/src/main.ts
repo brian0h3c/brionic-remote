@@ -248,8 +248,9 @@ function renderForm(existing?: Connection) {
         <legend>Authentication</legend>
         <label>Method
           <select name="auth_method" id="auth-method">
-            <option value="password"${c?.auth_method !== 'key' ? ' selected' : ''}>Password</option>
+            <option value="password"${!c?.auth_method || c?.auth_method === 'password' ? ' selected' : ''}>Password</option>
             <option value="key"${c?.auth_method === 'key' ? ' selected' : ''}>Private key</option>
+            <option value="agent"${c?.auth_method === 'agent' ? ' selected' : ''}>SSH agent / ~/.ssh keys</option>
           </select>
         </label>
         <div id="auth-password" class="auth-pane">
@@ -278,8 +279,9 @@ function renderForm(existing?: Connection) {
   const form = $('#conn-form') as HTMLFormElement
   const methodSel = $('#auth-method') as HTMLSelectElement
   const syncPanes = () => {
-    ;($('#auth-password') as HTMLElement).style.display = methodSel.value === 'key' ? 'none' : 'block'
-    ;($('#auth-key') as HTMLElement).style.display = methodSel.value === 'key' ? 'block' : 'none'
+    const m = methodSel.value
+    ;($('#auth-password') as HTMLElement).style.display = m === 'password' ? 'block' : 'none'
+    ;($('#auth-key') as HTMLElement).style.display = m === 'key' ? 'block' : 'none'
   }
   methodSel.onchange = syncPanes
   syncPanes()

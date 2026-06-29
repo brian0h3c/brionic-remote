@@ -31,6 +31,13 @@ func (s *Server) routes() {
 	mux.HandleFunc("POST /api/unlock", s.handleUnlock)
 	mux.HandleFunc("POST /api/lock", s.handleLock)
 
+	// Passkey (WebAuthn/FIDO2, e.g. YubiKey) unlock methods.
+	mux.HandleFunc("GET /api/passkeys", s.handlePasskeys)
+	mux.HandleFunc("POST /api/unlock-dek", s.handleUnlockDEK)
+	mux.Handle("GET /api/dek", s.auth(s.handleDEK))
+	mux.Handle("POST /api/passkeys", s.auth(s.handleAddPasskey))
+	mux.Handle("DELETE /api/passkeys/{cid}", s.auth(s.handleRemovePasskey))
+
 	// Connection management (session + unlocked vault required).
 	mux.Handle("GET /api/connections", s.auth(s.handleListConnections))
 	mux.Handle("POST /api/connections", s.auth(s.handleCreateConnection))
@@ -152,6 +159,82 @@ func (s *Server) handleLock(w http.ResponseWriter, _ *http.Request) {
 	s.clearSessions()
 	http.SetCookie(w, &http.Cookie{Name: sessionCookie, Value: "", Path: "/", MaxAge: -1})
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// handlePasskeys lists registered passkeys for the unlock screen (no session).
+func (s *Server) handlePasskeys(w http.ResponseWriter, _ *http.Request) {
+	keys, err := s.vault.Passkeys()
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{"passkeys": []any{}})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"passkeys": keys})
+}
+
+// handleDEK returns the data-encryption key so the client can wrap it with a
+// passkey's PRF secret. Requires an unlocked vault.
+func (s *Server) handleDEK(w http.ResponseWriter, _ *http.Request) {
+	dek, err := s.vault.DEK()
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"dek": base64.StdEncoding.EncodeToString(dek)})
+}
+
+type addPasskeyReq struct {
+	Label        string `json:"label"`
+	CredentialID string `json:"credential_id"`
+	PRFSalt      string `json:"prf_salt"`
+	WrapNonce    string `json:"wrap_nonce"`
+	WrappedDEK   string `json:"wrapped_dek"`
+}
+
+func (s *Server) handleAddPasskey(w http.ResponseWriter, r *http.Request) {
+	var req addPasskeyReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request"})
+		return
+	}
+	cid := b64(req.CredentialID)
+	if len(cid) == 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "missing credential"})
+		return
+	}
+	if err := s.vault.AddPasskey(req.Label, cid, b64(req.PRFSalt), b64(req.WrapNonce), b64(req.WrappedDEK)); err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+func (s *Server) handleRemovePasskey(w http.ResponseWriter, r *http.Request) {
+	if err := s.vault.RemovePasskey(b64(r.PathValue("cid"))); err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+func (s *Server) handleUnlockDEK(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		DEK string `json:"dek"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request"})
+		return
+	}
+	if err := s.vault.UnlockWithDEK(b64(req.DEK)); err != nil {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "could not unlock"})
+		return
+	}
+	s.setSessionCookie(w)
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+func b64(s string) []byte {
+	b, _ := base64.StdEncoding.DecodeString(s)
+	return b
 }
 
 // --- connection handlers ---------------------------------------------------

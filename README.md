@@ -154,7 +154,7 @@ make cross      # builds dist/brionic-remote-<os>-<arch> for mac/linux/windows
 
 - [x] Trust-on-first-use SSH host-key pinning
 - [x] In-browser VNC viewer (noVNC relay)
-- [ ] Passkey (WebAuthn) and email unlock methods
+- [x] YubiKey / passkey unlock (WebAuthn PRF wraps the vault key)
 - [ ] In-browser RDP viewer (needs an RDP gateway, e.g. guacd)
 - [ ] SSH key generation / import helpers, agent forwarding
 - [ ] Folders/tags, search, import from other managers

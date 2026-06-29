@@ -3,6 +3,7 @@ import { api } from './api'
 import type { Connection, ConnectionInput, Protocol } from './types'
 import { openTerminal } from './terminal'
 import { openVnc } from './vnc'
+import { enrollYubiKey, hasPasskeys, passkeysSupported, unlockWithYubiKey } from './webauthn'
 
 const app = document.getElementById('app') as HTMLElement
 
@@ -63,9 +64,10 @@ function renderGate(mode: 'setup' | 'unlock') {
           <button type="submit" class="btn-primary">${isSetup ? 'Create vault' : 'Unlock'}</button>
           <div id="gate-error" class="form-error"></div>
         </form>
+        ${isSetup ? '' : '<button id="yk-unlock" class="btn-ghost btn-block" style="display:none">Unlock with YubiKey</button>'}
         ${
           isSetup
-            ? '<p class="hint">Passkey and email unlock are coming soon.</p>'
+            ? '<p class="hint">Add a YubiKey after unlocking for password-free access.</p>'
             : ''
         }
       </div>
@@ -90,6 +92,23 @@ function renderGate(mode: 'setup' | 'unlock') {
       err.textContent = message(e2)
     }
   })
+
+  if (!isSetup && passkeysSupported()) {
+    void hasPasskeys().then((has) => {
+      const yk = document.querySelector<HTMLButtonElement>('#yk-unlock')
+      if (has && yk) {
+        yk.style.display = 'block'
+        yk.onclick = async () => {
+          try {
+            await unlockWithYubiKey()
+            await loadApp()
+          } catch (e) {
+            $('#gate-error').textContent = message(e)
+          }
+        }
+      }
+    })
+  }
 }
 
 // --- main application ------------------------------------------------------
@@ -108,6 +127,7 @@ function renderApp() {
         <button id="new-conn" class="btn-primary btn-block">+ New connection</button>
         <div id="conn-list" class="conn-list"></div>
         <button id="export-btn" class="btn-ghost btn-block">Export portable bundle</button>
+        <button id="yubikey-btn" class="btn-ghost btn-block">Add YubiKey</button>
         <button id="lock-btn" class="btn-ghost btn-block">Lock vault</button>
       </aside>
       <main id="main" class="main"></main>
@@ -116,6 +136,16 @@ function renderApp() {
   ;($('#new-conn') as HTMLButtonElement).onclick = () => renderForm()
   ;($('#export-btn') as HTMLButtonElement).onclick = () => {
     window.location.href = '/api/export'
+  }
+  ;($('#yubikey-btn') as HTMLButtonElement).onclick = async () => {
+    if (!passkeysSupported()) return alert('This browser does not support security keys.')
+    const label = prompt('Name this key', 'YubiKey') ?? ''
+    try {
+      await enrollYubiKey(label)
+      alert('YubiKey enrolled. You can now unlock with it.')
+    } catch (e) {
+      alert('Enrollment failed: ' + message(e))
+    }
   }
   ;($('#lock-btn') as HTMLButtonElement).onclick = async () => {
     await api.lock()

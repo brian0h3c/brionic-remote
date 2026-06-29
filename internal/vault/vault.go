@@ -36,13 +36,29 @@ var (
 )
 
 // unlockMethod wraps the DEK so the vault can be opened by one of several
-// mechanisms. Method is "password" today; "passkey" / "email" are planned.
+// mechanisms: "password" (Argon2id) or "passkey" (a WebAuthn/FIDO2 PRF secret
+// from e.g. a YubiKey wraps the DEK client-side).
 type unlockMethod struct {
 	Method     string    `json:"method"`
 	KDF        string    `json:"kdf,omitempty"`
 	KDFParams  KDFParams `json:"kdf_params,omitempty"`
 	WrapNonce  []byte    `json:"wrap_nonce"`
 	WrappedDEK []byte    `json:"wrapped_dek"`
+
+	// Passkey fields.
+	Label        string `json:"label,omitempty"`
+	CredentialID []byte `json:"credential_id,omitempty"`
+	PRFSalt      []byte `json:"prf_salt,omitempty"`
+}
+
+// PasskeyInfo is what the browser needs to perform a WebAuthn assertion and
+// unwrap the DEK for a registered key.
+type PasskeyInfo struct {
+	Label        string `json:"label"`
+	CredentialID []byte `json:"credential_id"`
+	PRFSalt      []byte `json:"prf_salt"`
+	WrapNonce    []byte `json:"wrap_nonce"`
+	WrappedDEK   []byte `json:"wrapped_dek"`
 }
 
 type envelope struct {
@@ -267,6 +283,99 @@ func (v *Vault) SetHostKey(id, hostKey string) error {
 		}
 	}
 	return errors.New("connection not found")
+}
+
+// DEK returns a copy of the data-encryption key while unlocked. The web client
+// uses it to wrap the DEK with a passkey's PRF secret when enrolling a key.
+func (v *Vault) DEK() ([]byte, error) {
+	v.mu.RLock()
+	defer v.mu.RUnlock()
+	if v.dek == nil {
+		return nil, ErrLocked
+	}
+	out := make([]byte, len(v.dek))
+	copy(out, v.dek)
+	return out, nil
+}
+
+// Passkeys lists the registered passkey unlock methods (read from disk so it
+// works while the vault is locked, for the unlock screen).
+func (v *Vault) Passkeys() ([]PasskeyInfo, error) {
+	raw, err := os.ReadFile(v.path)
+	if err != nil {
+		return nil, err
+	}
+	var env envelope
+	if err := json.Unmarshal(raw, &env); err != nil {
+		return nil, err
+	}
+	var out []PasskeyInfo
+	for _, m := range env.Unlock {
+		if m.Method == "passkey" {
+			out = append(out, PasskeyInfo{Label: m.Label, CredentialID: m.CredentialID, PRFSalt: m.PRFSalt, WrapNonce: m.WrapNonce, WrappedDEK: m.WrappedDEK})
+		}
+	}
+	return out, nil
+}
+
+// AddPasskey registers a passkey unlock method whose PRF-derived key wrapped the
+// DEK (computed client-side). Requires an unlocked vault.
+func (v *Vault) AddPasskey(label string, credID, prfSalt, wrapNonce, wrappedDEK []byte) error {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if v.dek == nil {
+		return ErrLocked
+	}
+	v.unlock = append(v.unlock, unlockMethod{
+		Method: "passkey", Label: label, CredentialID: credID,
+		PRFSalt: prfSalt, WrapNonce: wrapNonce, WrappedDEK: wrappedDEK,
+	})
+	return v.saveLocked()
+}
+
+// RemovePasskey removes a registered passkey by credential ID.
+func (v *Vault) RemovePasskey(credID []byte) error {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if v.dek == nil {
+		return ErrLocked
+	}
+	out := v.unlock[:0]
+	for _, m := range v.unlock {
+		if m.Method == "passkey" && string(m.CredentialID) == string(credID) {
+			continue
+		}
+		out = append(out, m)
+	}
+	v.unlock = out
+	return v.saveLocked()
+}
+
+// UnlockWithDEK opens the vault using a DEK recovered by the client (after a
+// passkey unwrapped it). The DEK is verified by decrypting the payload.
+func (v *Vault) UnlockWithDEK(dek []byte) error {
+	raw, err := os.ReadFile(v.path)
+	if err != nil {
+		return err
+	}
+	var env envelope
+	if err := json.Unmarshal(raw, &env); err != nil {
+		return err
+	}
+	plain, err := decrypt(dek, env.Nonce, env.Ciphertext, nil)
+	if err != nil {
+		return ErrWrongPassword
+	}
+	var data Data
+	if err := json.Unmarshal(plain, &data); err != nil {
+		return err
+	}
+	v.mu.Lock()
+	v.dek = dek
+	v.data = &data
+	v.unlock = env.Unlock
+	v.mu.Unlock()
+	return nil
 }
 
 // saveLocked re-encrypts the payload with the DEK and atomically writes the file.

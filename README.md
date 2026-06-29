@@ -64,6 +64,22 @@ make build      # builds the web UI + compiles the binary
 Your browser opens to `http://127.0.0.1:8717`. Create a master password, add a
 connection, and click it to open a session.
 
+## Using the app
+
+1. **Create / unlock the vault.** On first launch you set a master password
+   (8+ chars). It encrypts everything; there is no recovery if you lose it.
+2. **Add a connection.** Click **+ New connection** and fill in the host, port,
+   username, and how to authenticate:
+   - **Password** — stored encrypted in the vault.
+   - **Private key** — paste the PEM key (+ passphrase). Best for portability.
+   - **SSH agent / `~/.ssh` keys** — uses your loaded agent (`ssh-add`) or
+     default keys; convenient, but these don't travel with the vault.
+3. **Connect.** Click an SSH connection to open a terminal in your browser. On
+   first connect the server's host key is pinned; its fingerprint shows with a
+   *forget* link to re-trust if it ever changes.
+4. **Lock** clears all decrypted data from memory; unlock again with your
+   password.
+
 ### Live frontend development
 
 ```bash
@@ -83,10 +99,36 @@ cd web && npm install && npm run dev
 | `--vault`      | next to the executable  | Path to the encrypted vault file         |
 | `--no-browser` | `false`                 | Don't open the browser automatically     |
 
-### Portable / USB use
+### Portable / USB use across devices
 
-By default the vault is written **next to the binary**, so copying the binary +
-`brionic-remote.vault` to a USB drive makes the whole setup portable.
+Everything you save lives in **one encrypted file** (`brionic-remote.vault`,
+~a few KB) — AES‑256‑GCM, unlocked only by your master password. No cloud, no
+database. The web UI is **embedded inside the binary**, so it is not an
+`index.html` you double-click — you run the binary and it opens your browser.
+
+To carry it on a USB stick / move between computers:
+
+1. Grab the binary for each OS you use (see Cross-compiling below) plus your
+   `brionic-remote.vault`, and drop them in one folder on the drive:
+   ```
+   USB/
+   ├── brionic-remote-windows-amd64.exe
+   ├── brionic-remote-darwin-arm64
+   ├── brionic-remote-linux-amd64
+   └── brionic-remote.vault        # your encrypted data
+   ```
+2. On any machine, run the matching binary **from that folder**. It opens
+   `http://127.0.0.1:8717`; enter your master password and everything is there.
+   - **Windows:** double-click the `.exe` (it's unsigned, so click *More info →
+     Run anyway*).
+   - **macOS/Linux:** `./brionic-remote-darwin-arm64` (first run may need
+     `chmod +x`; on macOS, right-click → Open to bypass Gatekeeper).
+3. The vault is read/written **next to the binary** by default, so it travels
+   with you. Use `--vault /path/to/file.vault` to point elsewhere.
+
+> Tip: store each connection's password or private key **inside the connection**
+> for full portability. The local SSH agent and `~/.ssh` keys are convenient but
+> do **not** travel with the vault.
 
 ## Cross-compiling releases
 

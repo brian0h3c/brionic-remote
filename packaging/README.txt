@@ -15,6 +15,11 @@ Your web browser opens automatically at http://127.0.0.1:8717.
 On first run you create a master password; after that you unlock with
 that password (or a registered YubiKey).
 
+The launcher window closes itself. When you close the browser tab, the
+helper shuts itself down automatically (about 15 seconds later) so your
+vault is never left unlocked in the background. To use it again, just
+run the launcher again.
+
 WHAT'S IN HERE
 --------------
   Start-Mac.command / Start-Windows.bat / Start-Linux.sh
@@ -42,6 +47,7 @@ NOTES
     .command file > Open > Open.
   • Windows may warn "unknown publisher" (the helper is unsigned) —
     choose "More info" > "Run anyway".
-  • Close the terminal/console window the launcher opens to stop the app.
+  • To stop the app, close the browser tab (it shuts down on its own),
+    or open the app and click "Lock vault".
 
 Open source (MIT): https://github.com/brian0h3c/brionic-remote

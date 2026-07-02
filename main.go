@@ -29,6 +29,7 @@ func main() {
 	addr := flag.String("addr", "127.0.0.1:8717", "address to listen on")
 	vaultPath := flag.String("vault", defaultVaultPath(), "path to the encrypted vault file")
 	noBrowser := flag.Bool("no-browser", false, "do not open the browser automatically")
+	autoExit := flag.Bool("auto-exit", false, "exit when the browser tab is closed")
 	flag.Parse()
 
 	static, err := fs.Sub(distFS, "web/dist")
@@ -38,6 +39,9 @@ func main() {
 
 	v := vault.New(*vaultPath)
 	srv := server.New(v, static)
+	if *autoExit {
+		srv.EnableAutoExit()
+	}
 
 	httpServer := &http.Server{
 		Addr:              *addr,

@@ -30,6 +30,7 @@ func (s *Server) routes() {
 	mux.HandleFunc("POST /api/setup", s.handleSetup)
 	mux.HandleFunc("POST /api/unlock", s.handleUnlock)
 	mux.HandleFunc("POST /api/lock", s.handleLock)
+	mux.HandleFunc("POST /api/heartbeat", s.handleHeartbeat)
 
 	// Passkey (WebAuthn/FIDO2, e.g. YubiKey) unlock methods.
 	mux.HandleFunc("GET /api/passkeys", s.handlePasskeys)
@@ -116,6 +117,15 @@ func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
 		"exists":   s.vault.Exists(),
 		"unlocked": s.vault.IsUnlocked(),
 	})
+}
+
+// handleHeartbeat keeps the process alive while a browser tab is open (used by
+// --auto-exit). No body, no auth — it just proves the UI is still present.
+func (s *Server) handleHeartbeat(w http.ResponseWriter, _ *http.Request) {
+	if s.autoExit {
+		s.touch()
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {

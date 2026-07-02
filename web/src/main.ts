@@ -13,6 +13,13 @@ let activeTerminal: { dispose(): void } | null = null
 
 void init()
 
+// Keep the local helper alive while this tab is open. When the tab/window
+// closes, heartbeats stop and the helper shuts itself down (with --auto-exit).
+setInterval(() => {
+  void fetch('/api/heartbeat', { method: 'POST' }).catch(() => {})
+}, 5000)
+void fetch('/api/heartbeat', { method: 'POST' }).catch(() => {})
+
 async function init() {
   try {
     const status = await api.status()

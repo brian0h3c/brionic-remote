@@ -11,6 +11,7 @@
 # Vault files (never commit secrets)
 *.vault
 *.vault.tmp
+*.vault.files/
 
 # OS / editor cruft
 .DS_Store

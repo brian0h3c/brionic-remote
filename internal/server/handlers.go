@@ -48,6 +48,12 @@ func (s *Server) routes() {
 	mux.Handle("POST /api/connections/{id}/forget-hostkey", s.auth(s.handleForgetHostKey))
 	mux.Handle("GET /api/export", s.auth(s.handleExport))
 
+	// Encrypted files (pictures, documents) stored in the vault.
+	mux.Handle("GET /api/files", s.auth(s.handleListFiles))
+	mux.Handle("POST /api/files", s.auth(s.handleUploadFile))
+	mux.Handle("GET /api/files/{id}", s.auth(s.handleDownloadFile))
+	mux.Handle("DELETE /api/files/{id}", s.auth(s.handleDeleteFile))
+
 	// Live SSH session bridge.
 	mux.Handle("GET /api/ws/ssh/{id}", s.auth(s.handleSSH))
 
@@ -352,6 +358,17 @@ func (s *Server) handleExport(w http.ResponseWriter, _ *http.Request) {
 		addFileToZip(zw, exe, filepath.Base(exe))
 	}
 	addFileToZip(zw, s.vault.Path(), "brionic-remote.vault")
+
+	// Include the encrypted file blobs so attachments travel too.
+	dir := s.vault.FilesDir()
+	if entries, err := os.ReadDir(dir); err == nil {
+		for _, e := range entries {
+			if e.IsDir() {
+				continue
+			}
+			addFileToZip(zw, filepath.Join(dir, e.Name()), filepath.Join(filepath.Base(dir), e.Name()))
+		}
+	}
 }
 
 func addFileToZip(zw *zip.Writer, srcPath, name string) {

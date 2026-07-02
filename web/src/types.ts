@@ -23,6 +23,14 @@ export interface Status {
   unlocked: boolean
 }
 
+export interface VaultFile {
+  id: string
+  name: string
+  size: number
+  mime_type?: string
+  created_at?: string
+}
+
 // Payload sent to create/update endpoints (includes optional secrets).
 export interface ConnectionInput {
   name: string

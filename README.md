@@ -14,10 +14,15 @@ USB stick together with its vault and run it anywhere.
 
 ## Why
 
-- 🔒 **Encrypted at rest** — Argon2id + AES‑256‑GCM. Your master password never
-  leaves your machine; the vault is useless without it.
+- 🔒 **Encrypted at rest** — Argon2id + XChaCha20‑Poly1305. Your master password
+  never leaves your machine; the vault is useless without it.
+- 🖇️ **Encrypted files** — keep pictures and documents in the vault; they're
+  encrypted at rest and travel with the app folder.
+- 🏠 **100% local** — no cloud, no account, no telemetry. The UI binds to
+  `127.0.0.1` and the app never contacts any outside server. The only network
+  traffic is the SSH/VNC connections *you* start.
 - 🧳 **Portable** — a single binary plus a `*.vault` file. Carry it on a USB drive
-  and your sessions follow you across computers.
+  and your data follows you across computers.
 - 🌐 **Browser-based** — the binary serves a local web UI. Manage everything from
   your browser; no heavyweight desktop runtime.
 - 🖥️ **Cross-platform** — macOS, Windows, and Linux from the same codebase.
@@ -45,10 +50,14 @@ terminal to a real SSH session via `golang.org/x/crypto/ssh`.
 ### The vault format
 
 A JSON envelope. A random 32-byte **data-encryption key (DEK)** encrypts the
-payload with AES‑256‑GCM. The DEK is wrapped by one or more **unlock methods**.
-Today there is a password method (Argon2id derives a key that wraps the DEK);
-the structure is designed so **passkey (WebAuthn)** and **email** methods can be
-added later by wrapping the same DEK — no full re-encryption needed.
+payload with **XChaCha20‑Poly1305** (its 192‑bit nonce makes random nonces safe
+indefinitely; older vaults written with AES‑256‑GCM still open automatically).
+The DEK is wrapped by one or more **unlock methods**: a password method (Argon2id
+derives a key that wraps the DEK) and optionally a **YubiKey/passkey** (WebAuthn
+PRF) method. Additional methods can wrap the same DEK without re-encrypting.
+
+Encrypted files are stored as individual XChaCha20‑Poly1305 blobs in a
+`brionic-remote.vault.files/` folder next to the vault, so they travel with it.
 
 ## Quick start (development)
 
@@ -88,6 +97,13 @@ connection, and click it to open a session.
    **closing the browser tab shuts the helper down automatically** (~15s later),
    so nothing is left unlocked.
 
+**Encrypted files.** The *Encrypted files* screen lets you store pictures and
+documents (up to 100 MB each). Each file is encrypted with the vault key and
+kept in a `brionic-remote.vault.files/` folder beside the vault, so it travels
+with the app folder. **Deleting a file (or a connection) is permanent and cannot
+be undone**, and there is **no master-password recovery** — see the in-app
+*Help & safety* screen.
+
 ### Live frontend development
 
 ```bash
@@ -111,7 +127,7 @@ cd web && npm install && npm run dev
 ### Portable / USB use across devices
 
 Everything you save lives in **one encrypted file** (`brionic-remote.vault`,
-~a few KB) — AES‑256‑GCM, unlocked only by your master password. No cloud, no
+~a few KB) — XChaCha20‑Poly1305, unlocked only by your master password. No cloud, no
 database. The web UI is **embedded inside the binary**, so it is not an
 `index.html` you double-click — you run the binary and it opens your browser.
 
@@ -214,6 +230,7 @@ make cross      # builds dist/brionic-remote-<os>-<arch> for mac/linux/windows
 - [x] Trust-on-first-use SSH host-key pinning
 - [x] In-browser VNC viewer (noVNC relay)
 - [x] YubiKey / passkey unlock (WebAuthn PRF wraps the vault key)
+- [x] Encrypted file storage (pictures & documents)
 - [ ] In-browser RDP viewer (needs an RDP gateway, e.g. guacd)
 - [ ] TLS + hardened auth for safe remote/LAN & mobile access
 - [ ] SSH key generation / import helpers, agent forwarding

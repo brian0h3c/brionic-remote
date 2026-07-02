@@ -1,4 +1,4 @@
-import type { Connection, ConnectionInput, Status } from './types'
+import type { Connection, ConnectionInput, Status, VaultFile } from './types'
 
 async function req<T>(method: string, url: string, body?: unknown): Promise<T> {
   const res = await fetch(url, {
@@ -27,4 +27,14 @@ export const api = {
   deleteConnection: (id: string) => req<{ ok: boolean }>('DELETE', `/api/connections/${id}`),
   forgetHostKey: (id: string) =>
     req<{ ok: boolean }>('POST', `/api/connections/${id}/forget-hostkey`),
+  listFiles: () => req<{ files: VaultFile[] }>('GET', '/api/files'),
+  deleteFile: (id: string) => req<{ ok: boolean }>('DELETE', `/api/files/${id}`),
+  async uploadFile(file: File): Promise<VaultFile> {
+    const fd = new FormData()
+    fd.append('file', file)
+    const res = await fetch('/api/files', { method: 'POST', body: fd, credentials: 'same-origin' })
+    const data = await res.json().catch(() => null)
+    if (!res.ok) throw new Error((data && data.error) || 'upload failed')
+    return data as VaultFile
+  },
 }

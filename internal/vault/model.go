@@ -50,5 +50,17 @@ type Connection struct {
 // Data is the decrypted vault payload held in memory while the vault is open.
 type Data struct {
 	Connections []Connection `json:"connections"`
+	Files       []VaultFile  `json:"files,omitempty"`
 	UpdatedAt   time.Time    `json:"updated_at"`
+}
+
+// VaultFile is metadata for an encrypted attachment (picture, document, etc.).
+// The encrypted bytes live in a sibling blob file; only this metadata is kept
+// in the vault payload.
+type VaultFile struct {
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	Size      int64     `json:"size"`
+	MimeType  string    `json:"mime_type,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
 }

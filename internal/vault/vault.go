@@ -395,7 +395,7 @@ func (v *Vault) saveLocked() error {
 	}
 	env := envelope{
 		Version:    formatVersion,
-		Cipher:     "aes-256-gcm",
+		Cipher:     "xchacha20-poly1305",
 		Nonce:      nonce,
 		Ciphertext: ct,
 		Unlock:     v.unlock,

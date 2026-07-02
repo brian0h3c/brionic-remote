@@ -1,6 +1,6 @@
 import './styles.css'
 import { api } from './api'
-import type { Connection, ConnectionInput, Protocol } from './types'
+import type { Connection, ConnectionInput, Protocol, VaultFile } from './types'
 import { openTerminal } from './terminal'
 import { openVnc } from './vnc'
 import { enrollYubiKey, hasPasskeys, passkeysSupported, unlockWithYubiKey } from './webauthn'
@@ -60,9 +60,14 @@ function renderGate(mode: 'setup' | 'unlock') {
         <h1>${isSetup ? 'Create your vault' : 'Unlock your vault'}</h1>
         <p class="muted">${
           isSetup
-            ? 'Choose a master password. It encrypts every saved connection. There is no recovery if you forget it.'
+            ? 'Choose a master password. It encrypts every saved connection and file.'
             : 'Enter your master password to decrypt your saved connections.'
         }</p>
+        ${
+          isSetup
+            ? '<div class="callout-danger small">There is <strong>no way to recover a forgotten master password.</strong> If you lose it (and have no YubiKey), your data cannot be opened. Keep it safe.</div>'
+            : ''
+        }
         <form id="gate-form">
           <input id="pw" type="password" placeholder="Master password" autocomplete="${
             isSetup ? 'new-password' : 'current-password'
@@ -133,6 +138,8 @@ function renderApp() {
         <div class="brand"><span class="brand-mark">◆</span> Brionic Remote</div>
         <button id="new-conn" class="btn-primary btn-block">+ New connection</button>
         <div id="conn-list" class="conn-list"></div>
+        <button id="files-btn" class="btn-ghost btn-block">Encrypted files</button>
+        <button id="help-btn" class="btn-ghost btn-block">Help &amp; safety</button>
         <button id="export-btn" class="btn-ghost btn-block">Export portable bundle</button>
         <button id="yubikey-btn" class="btn-ghost btn-block">Add YubiKey</button>
         <button id="lock-btn" class="btn-ghost btn-block">Lock vault</button>
@@ -141,6 +148,8 @@ function renderApp() {
     </div>`
 
   ;($('#new-conn') as HTMLButtonElement).onclick = () => renderForm()
+  ;($('#files-btn') as HTMLButtonElement).onclick = () => void renderFiles()
+  ;($('#help-btn') as HTMLButtonElement).onclick = () => renderHelp()
   ;($('#export-btn') as HTMLButtonElement).onclick = () => {
     window.location.href = '/api/export'
   }
@@ -382,6 +391,123 @@ function renderForm(existing?: Connection) {
       ;($('#form-error') as HTMLElement).textContent = message(err)
     }
   }
+}
+
+// --- encrypted files -------------------------------------------------------
+
+async function renderFiles() {
+  activeId = null
+  renderList()
+  setMain(`
+    <div class="session-head"><h2>Encrypted files</h2></div>
+    <div class="notice">Pictures and documents you add here are encrypted with your vault and stored inside this app folder. They can only be opened while the vault is unlocked. <strong>Deleting a file is permanent and cannot be undone.</strong></div>
+    <label class="file-drop" for="file-input">
+      <input id="file-input" type="file" multiple hidden />
+      <span>+ Add files (up to 100&nbsp;MB each)</span>
+    </label>
+    <div id="files-status" class="muted"></div>
+    <div id="files-grid" class="files-grid"></div>`)
+
+  const input = $('#file-input') as HTMLInputElement
+  input.onchange = async () => {
+    if (!input.files || input.files.length === 0) return
+    const statusEl = $('#files-status')
+    for (const f of Array.from(input.files)) {
+      statusEl.textContent = `Encrypting ${f.name}…`
+      try {
+        await api.uploadFile(f)
+      } catch (e) {
+        statusEl.textContent = message(e)
+        return
+      }
+    }
+    statusEl.textContent = ''
+    await refreshFilesGrid()
+  }
+  await refreshFilesGrid()
+}
+
+async function refreshFilesGrid() {
+  const grid = $('#files-grid')
+  const { files } = await api.listFiles()
+  if (files.length === 0) {
+    grid.innerHTML = '<p class="muted empty">No files yet.</p>'
+    return
+  }
+  grid.innerHTML = files.map((f) => fileCard(f)).join('')
+  grid.querySelectorAll<HTMLElement>('[data-del]').forEach((el) => {
+    el.onclick = async () => {
+      const f = files.find((x) => x.id === el.dataset.del)
+      if (!f) return
+      if (!confirm(`Delete "${f.name}" permanently?\n\nThis cannot be undone — the encrypted file will be erased.`)) return
+      await api.deleteFile(f.id)
+      await refreshFilesGrid()
+    }
+  })
+}
+
+function fileCard(f: VaultFile): string {
+  const isImg = (f.mime_type || '').startsWith('image/')
+  const preview = isImg
+    ? `<img src="/api/files/${esc(f.id)}" alt="${esc(f.name)}" loading="lazy" />`
+    : '<div class="file-icon">FILE</div>'
+  return `
+    <div class="file-card">
+      <a class="file-preview" href="/api/files/${esc(f.id)}" target="_blank" rel="noopener">${preview}</a>
+      <div class="file-name" title="${esc(f.name)}">${esc(f.name)}</div>
+      <div class="file-meta">${esc(formatBytes(f.size))}</div>
+      <div class="file-actions">
+        <a class="link-btn" href="/api/files/${esc(f.id)}?download=1">Download</a>
+        <button class="link-btn danger" data-del="${esc(f.id)}">Delete</button>
+      </div>
+    </div>`
+}
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`
+  const units = ['KB', 'MB', 'GB']
+  let i = -1
+  let v = n
+  do {
+    v /= 1024
+    i++
+  } while (v >= 1024 && i < units.length - 1)
+  return `${v.toFixed(1)} ${units[i]}`
+}
+
+// --- help & safety ---------------------------------------------------------
+
+function renderHelp() {
+  activeId = null
+  renderList()
+  setMain(`
+    <div class="session-head"><h2>How to use Brionic Remote</h2></div>
+    <div class="help">
+      <h3>The basics</h3>
+      <ul>
+        <li><strong>Everything is local and encrypted.</strong> Your data never leaves this device. It lives only in the <code>brionic-remote.vault</code> file, encrypted with XChaCha20-Poly1305 and unlocked by your master password (or a YubiKey).</li>
+        <li><strong>Connections.</strong> Use <em>+ New connection</em> to save an SSH, RDP, or VNC profile. Click a connection to open it — SSH opens a terminal, VNC opens the remote desktop, in your browser.</li>
+        <li><strong>Encrypted files.</strong> Store pictures and documents in <em>Encrypted files</em>. They are encrypted at rest and travel with the app folder.</li>
+        <li><strong>Portable.</strong> Copy this whole folder (binary + <code>brionic-remote.vault</code> + the <code>.files</code> folder) to a USB drive to use it anywhere. Use <em>Export portable bundle</em> to get a ready-to-move copy.</li>
+        <li><strong>Locking.</strong> <em>Lock vault</em> clears everything from memory. When launched from a portable folder, closing the browser tab shuts the app down automatically.</li>
+      </ul>
+
+      <div class="callout-danger">
+        <h3>Important — these actions cannot be undone</h3>
+        <ul>
+          <li>There is <strong>no password recovery</strong>. If you forget your master password and have no registered YubiKey, the vault can <strong>never</strong> be opened again.</li>
+          <li><strong>Deleting a connection or a file is permanent.</strong> It is erased immediately and cannot be recovered.</li>
+          <li>If you lose the app folder or the <code>brionic-remote.vault</code> file, or it becomes corrupted, the data inside is gone for good.</li>
+          <li>Keep at least one safe backup copy of your vault file if the data matters to you.</li>
+        </ul>
+      </div>
+
+      <h3>Security notes</h3>
+      <ul>
+        <li>SSH host keys are pinned on first connect; a changed key is refused as a possible impersonation until you choose to forget it.</li>
+        <li>The app listens only on your own machine (127.0.0.1) and never contacts any outside server.</li>
+      </ul>
+    </div>`)
 }
 
 // --- fatal error -----------------------------------------------------------

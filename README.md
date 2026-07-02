@@ -67,18 +67,26 @@ connection, and click it to open a session.
 ## Using the app
 
 1. **Create / unlock the vault.** On first launch you set a master password
-   (8+ chars). It encrypts everything; there is no recovery if you lose it.
+   (8+ chars). It encrypts everything; there is no recovery if you lose it. You
+   can also register a **YubiKey / passkey** (sidebar → *Add YubiKey*) and then
+   unlock without a password.
 2. **Add a connection.** Click **+ New connection** and fill in the host, port,
    username, and how to authenticate:
    - **Password** — stored encrypted in the vault.
    - **Private key** — paste the PEM key (+ passphrase). Best for portability.
    - **SSH agent / `~/.ssh` keys** — uses your loaded agent (`ssh-add`) or
      default keys; convenient, but these don't travel with the vault.
-3. **Connect.** Click an SSH connection to open a terminal in your browser. On
-   first connect the server's host key is pinned; its fingerprint shows with a
-   *forget* link to re-trust if it ever changes.
+3. **Connect.**
+   - **SSH** → an in-browser terminal opens. On first connect the server's host
+     key is pinned; its fingerprint shows with a *forget* link to re-trust if it
+     ever changes.
+   - **VNC** → the remote desktop renders in your browser (noVNC).
+   - **RDP** → the profile is stored; in-browser RDP needs a gateway and is on
+     the roadmap.
 4. **Lock** clears all decrypted data from memory; unlock again with your
-   password.
+   password or YubiKey. When launched from a portable-folder launcher, simply
+   **closing the browser tab shuts the helper down automatically** (~15s later),
+   so nothing is left unlocked.
 
 ### Live frontend development
 
@@ -98,6 +106,7 @@ cd web && npm install && npm run dev
 | `--addr`       | `127.0.0.1:8717`        | Address to listen on                     |
 | `--vault`      | next to the executable  | Path to the encrypted vault file         |
 | `--no-browser` | `false`                 | Don't open the browser automatically     |
+| `--auto-exit`  | `false`                 | Quit when the browser tab is closed (used by the portable launchers) |
 
 ### Portable / USB use across devices
 
@@ -163,6 +172,27 @@ and keep them together:
 > for full portability. The local SSH agent and `~/.ssh` keys are convenient but
 > do **not** travel with the vault.
 
+### Phones and tablets (iOS / Android)
+
+The helper is a small server, so there are two ways it relates to mobile:
+
+- **Run it on the phone itself:**
+  - **Android** — yes, for advanced users: install [Termux](https://termux.dev),
+    copy the `brionic-remote-linux-arm64` binary in, run it, then open
+    `http://127.0.0.1:8717` in your mobile browser.
+  - **iOS / iPadOS** — no. Apple does not allow apps to run their own native
+    server binary, so it can't run locally on an iPhone/iPad.
+- **Run it on a computer and open the UI from your phone's browser** (works for
+  both iOS and Android): start the helper on an always-on machine bound to your
+  network, e.g. `brionic-remote --addr 0.0.0.0:8717`, and browse to
+  `http://<that-computer-ip>:8717` from the phone.
+
+> ⚠️ **Security:** binding to anything other than `127.0.0.1` exposes the app on
+> your network. It currently has no TLS and only lightweight auth, so **only do
+> this on a trusted LAN (or over a VPN/SSH tunnel), never directly on the public
+> internet.** Network TLS + hardened auth for safe remote/mobile access is on the
+> roadmap.
+
 ## Cross-compiling releases
 
 ```bash
@@ -185,6 +215,7 @@ make cross      # builds dist/brionic-remote-<os>-<arch> for mac/linux/windows
 - [x] In-browser VNC viewer (noVNC relay)
 - [x] YubiKey / passkey unlock (WebAuthn PRF wraps the vault key)
 - [ ] In-browser RDP viewer (needs an RDP gateway, e.g. guacd)
+- [ ] TLS + hardened auth for safe remote/LAN & mobile access
 - [ ] SSH key generation / import helpers, agent forwarding
 - [ ] Folders/tags, search, import from other managers
 - [ ] Optional encrypted multi-device sync

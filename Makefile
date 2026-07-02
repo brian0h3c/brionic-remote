@@ -1,7 +1,7 @@
 BINARY := brionic-remote
 WEB := web
 
-.PHONY: all build web go run dev tidy clean test cross
+.PHONY: all build web go run dev tidy clean test cross bundle
 
 all: build
 
@@ -38,7 +38,22 @@ cross: web
 	GOOS=darwin  GOARCH=arm64 go build -o dist/$(BINARY)-darwin-arm64 .
 	GOOS=darwin  GOARCH=amd64 go build -o dist/$(BINARY)-darwin-amd64 .
 	GOOS=linux   GOARCH=amd64 go build -o dist/$(BINARY)-linux-amd64 .
+	GOOS=linux   GOARCH=arm64 go build -o dist/$(BINARY)-linux-arm64 .
 	GOOS=windows GOARCH=amd64 go build -o dist/$(BINARY)-windows-amd64.exe .
+
+## bundle: assemble the portable "app folder" (copy to a USB drive and run)
+bundle: cross
+	rm -rf dist/BrionicRemote
+	mkdir -p dist/BrionicRemote/bin
+	cp dist/$(BINARY)-darwin-arm64 dist/$(BINARY)-darwin-amd64 \
+	   dist/$(BINARY)-linux-amd64 dist/$(BINARY)-linux-arm64 \
+	   dist/$(BINARY)-windows-amd64.exe dist/BrionicRemote/bin/
+	cp packaging/Start-Mac.command packaging/Start-Windows.bat \
+	   packaging/Start-Linux.sh packaging/README.txt dist/BrionicRemote/
+	chmod +x dist/BrionicRemote/Start-Mac.command dist/BrionicRemote/Start-Linux.sh dist/BrionicRemote/bin/*
+	@echo ""
+	@echo "Portable app folder ready:  dist/BrionicRemote/"
+	@echo "Copy that whole folder to a USB drive and double-click the launcher for your OS."
 
 ## clean: remove build artifacts
 clean:

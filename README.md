@@ -106,17 +106,46 @@ Everything you save lives in **one encrypted file** (`brionic-remote.vault`,
 database. The web UI is **embedded inside the binary**, so it is not an
 `index.html` you double-click — you run the binary and it opens your browser.
 
-To carry it on a USB stick / move between computers:
+> **Why a helper program and not just an HTML file?** Browsers are sandboxed and
+> cannot open SSH/VNC sockets themselves. A tiny local helper (the binary) makes
+> those connections and renders the UI in your browser. It listens only on
+> `127.0.0.1` and never phones home.
+
+#### One-command portable folder
+
+```bash
+make bundle     # creates dist/BrionicRemote/
+```
+
+This produces a self-contained folder you can drop on a USB drive and run
+anywhere — **no install**:
+
+```
+BrionicRemote/
+├── Start-Mac.command       ← double-click on macOS
+├── Start-Windows.bat       ← double-click on Windows
+├── Start-Linux.sh          ← run on Linux
+├── README.txt
+├── bin/                    ← the helper for each OS/CPU
+│   ├── brionic-remote-darwin-arm64
+│   ├── brionic-remote-darwin-amd64
+│   ├── brionic-remote-linux-amd64
+│   ├── brionic-remote-linux-arm64
+│   └── brionic-remote-windows-amd64.exe
+└── brionic-remote.vault    ← your encrypted data (created on first run)
+```
+
+Copy the whole folder, double-click the launcher for your OS, and your browser
+opens to the app. The launcher keeps the vault at the folder root so your data
+travels with the folder.
+
+#### Manual layout
+
+If you prefer, grab a single binary for your OS and your `brionic-remote.vault`
+and keep them together:
 
 1. Grab the binary for each OS you use (see Cross-compiling below) plus your
-   `brionic-remote.vault`, and drop them in one folder on the drive:
-   ```
-   USB/
-   ├── brionic-remote-windows-amd64.exe
-   ├── brionic-remote-darwin-arm64
-   ├── brionic-remote-linux-amd64
-   └── brionic-remote.vault        # your encrypted data
-   ```
+   `brionic-remote.vault`, and drop them in one folder on the drive.
 2. On any machine, run the matching binary **from that folder**. It opens
    `http://127.0.0.1:8717`; enter your master password and everything is there.
    - **Windows:** double-click the `.exe` (it's unsigned, so click *More info →
